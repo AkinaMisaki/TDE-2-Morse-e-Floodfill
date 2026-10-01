@@ -1,3 +1,4 @@
+import java.util.Scanner;
 class Node {
     String val_morse;
     char val_letra;
@@ -119,10 +120,16 @@ class ArvoreBinaria{
     }
 }
 
-public class Main {
+class Main {
     public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
         ArvoreBinaria Arvore = new ArvoreBinaria();
-        Arvore.decodificar("...  / --- / ...");
 
+        while (true){
+            System.out.println("digite codigo morse");
+            String valor_morse = scanner.nextLine();
+
+            Arvore.decodificar(valor_morse);
+        }
     }
 }
