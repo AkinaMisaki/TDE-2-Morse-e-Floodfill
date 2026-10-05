@@ -89,7 +89,7 @@ public class Main {
             System.out.println("Erro de compilação em " + pasta + ". Corrija e tente de novo.");
             return;
         }
-        // Compilou, mas não tem classe Main (tipo o main.java ainda vazio).
+        // Compilou, mas não tem classe Main (tipo um Main.java ainda vazio).
         if (!new File(dir, "Main.class").isFile()) {
             System.out.println(pasta + " ainda não tem um menu: falta a classe Main (arquivo Main.java).");
             return;
