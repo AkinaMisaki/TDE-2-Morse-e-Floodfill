@@ -1,4 +1,8 @@
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Scanner;
+
 
 class Node {
     String val_morse;
@@ -79,6 +83,19 @@ class ArvoreBinaria {
         }
         System.out.println("Mensagem decodificada: " + resultado);
     }
+
+    public void decodificarArquivo(String caminhoArquivo) {
+        try {
+
+            String codigoMorse = Files.readString(Path.of(caminhoArquivo)).trim();
+            System.out.println("Conteúdo lido do arquivo:\n" + codigoMorse);
+            decodificar(codigoMorse);
+
+        } catch (IOException e) {
+            System.err.println("Erro ao ler arquivo: " + e.getMessage());
+        }
+    }
+
     public void exibirArvore() {
         System.out.println("\n////////////////////////////////////////");
         System.out.println("   REPRESENTAÇÃO VISUAL DA ÁRVORE MORSE");
@@ -94,7 +111,7 @@ class ArvoreBinaria {
         }
         imprimirRecursivo(no.direita, nivel + 1);
         for (int i = 0; i < nivel; i++) {
-            System.out.print("        "); 
+            System.out.print("        ");
         }
         if (no == this.root) {
             System.out.println("[RAIZ]");
@@ -109,6 +126,8 @@ class Main {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
         ArvoreBinaria arvore = new ArvoreBinaria();
+
+        String caminho_arquivo = "src/arquivo.txt";
         int opcao = -1;
         System.out.println("////////////////////////////////////////");
         System.out.println("    BEM-VINDO AO DECODIFICADOR MORSE    ");
@@ -116,7 +135,8 @@ class Main {
         while (opcao != 0) {
             System.out.println("\nEscolha uma opção:");
             System.out.println("1 - Decodificar código Morse");
-            System.out.println("2 - Visualizar Árvore Binária");
+            System.out.println("2 - Decodificar morse em txt");
+            System.out.println("3 - Visualizar Árvore Binária");
             System.out.println("0 - Sair");
             System.out.print("Opção: ");
             try {
@@ -134,17 +154,24 @@ class Main {
                     arvore.decodificar(valor_morse);
                     System.out.println("////////////////////////////////////////");
                     break;
+
                 case 2:
+                    arvore.decodificarArquivo(caminho_arquivo);
+                    break;
+                case 3:
                     arvore.exibirArvore();
                     break;
                 case 0:
                     System.out.println("Encerrando o programa... Até logo!");
                     break;
+
                 default:
                     System.out.println("Opção inválida! Tente novamente.");
                     break;
             }
         }
         scanner.close();
+        arvore.decodificarArquivo(caminho_arquivo);
     }
+
 }
