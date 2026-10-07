@@ -127,7 +127,7 @@ class Main {
         Scanner scanner = new Scanner(System.in);
         ArvoreBinaria arvore = new ArvoreBinaria();
 
-        String caminho_arquivo = "src/arquivo.txt";
+        String caminho_arquivo = "arquivo.txt";
         int opcao = -1;
         System.out.println("////////////////////////////////////////");
         System.out.println("    BEM-VINDO AO DECODIFICADOR MORSE    ");
