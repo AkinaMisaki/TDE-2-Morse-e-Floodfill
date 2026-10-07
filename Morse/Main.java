@@ -171,7 +171,6 @@ class Main {
             }
         }
         scanner.close();
-        arvore.decodificarArquivo(caminho_arquivo);
     }
 
 }
