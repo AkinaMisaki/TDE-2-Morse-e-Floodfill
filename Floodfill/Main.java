@@ -22,8 +22,8 @@ public class Main {
         }
         SwingUtilities.invokeLater(() -> {
             EditorGrid editor = new EditorGrid(32, 32);
-            editor.adicionarAlgoritmo("Pilha", new FloodFillPilha());
             editor.adicionarAlgoritmo("Fila", new FloodFillFila());
+            editor.adicionarAlgoritmo("Pilha", new FloodFillPilha());
             editor.setVisible(true);
         });
     }

@@ -26,6 +26,7 @@ public class ImageService {
     private final Runnable aoPintar;
 
     private int numeroQuadro;
+    private int quadrosSalvos;
     private int pixelsPintados;
     private long tempoServicoNs;
     private long inicioRitmoNs;
@@ -48,10 +49,14 @@ public class ImageService {
         this.aoPintar = aoPintar;
     }
 
-    /** Prepara a pasta e salva a imagem original (passo_0000). */
+    /**
+     * Prepara a pasta e salva a imagem como ela está antes de pintar.
+     * A numeração continua de onde a pasta parou (passo_0000 se ela estiver vazia).
+     */
     public void iniciar(BufferedImage imagem) throws IOException {
         long t0 = System.nanoTime();
         numeroQuadro = 0;
+        quadrosSalvos = 0;
         pixelsPintados = 0;
         tempoServicoNs = 0;
         passos = 0;
@@ -155,8 +160,35 @@ public class ImageService {
         return String.format("%.2f s", ms / 1000);
     }
 
+    /** Quantas imagens essa execução salvou (sem contar as que já estavam na pasta). */
     public int getQuadrosSalvos() {
-        return numeroQuadro;
+        return quadrosSalvos;
+    }
+
+    /** Quantas etapas já estão salvas na pasta. */
+    public static int contarEtapas(File pasta) {
+        return etapasSalvas(pasta).length;
+    }
+
+    /**
+     * Apaga as etapas salvas na pasta, pra próxima execução começar do passo_0000 de novo.
+     *
+     * @return Quantos arquivos foram apagados
+     */
+    public static int apagarEtapas(File pasta) {
+        int apagados = 0;
+        for (File f : etapasSalvas(pasta)) {
+            if (f.delete()) {
+                apagados++;
+            }
+        }
+        return apagados;
+    }
+
+    /** Os passo_*.bmp que estão na pasta (nenhum se a pasta não existir). */
+    private static File[] etapasSalvas(File pasta) {
+        File[] etapas = pasta.listFiles((d, nome) -> nome.startsWith("passo_") && nome.endsWith(".bmp"));
+        return etapas != null ? etapas : new File[0];
     }
 
     private void prepararPasta() throws IOException {
@@ -166,11 +198,14 @@ public class ImageService {
         if (!pastaSaida.exists() && !pastaSaida.mkdirs()) {
             throw new IOException("Nao foi possivel criar a pasta " + pastaSaida.getPath());
         }
-        // Apaga as etapas antigas pra não misturar os resultados.
-        File[] antigos = pastaSaida.listFiles((d, nome) -> nome.startsWith("passo_") && nome.endsWith(".bmp"));
-        if (antigos != null) {
-            for (File f : antigos) {
-                f.delete();
+        // Não apaga as etapas antigas: continua a numeração depois da última (quem zera é o apagarEtapas).
+        for (File f : etapasSalvas(pastaSaida)) {
+            String nome = f.getName();
+            try {
+                int numero = Integer.parseInt(nome.substring("passo_".length(), nome.length() - ".bmp".length()));
+                numeroQuadro = Math.max(numeroQuadro, numero + 1);
+            } catch (NumberFormatException e) {
+                // Nome fora do padrão (tipo passo_final.bmp), não entra na conta
             }
         }
     }
@@ -185,6 +220,7 @@ public class ImageService {
         if (!ImageIO.write(rgb, "bmp", arquivo)) {
             throw new IOException("Falha ao salvar " + arquivo.getPath());
         }
+        quadrosSalvos++;
     }
 
     /**

@@ -43,7 +43,7 @@ public class FloodFillPilha implements AlgoritmoFloodFill {
     }
 
     @Override
-    public Position executar(BufferedImage imagem, int x, int y, int novaCor,
+    public Position executar(BufferedImage imagem, int x, int y, int novaCor, int limiar,
                              Position destino, ImageService servico) throws IOException {
         int largura = imagem.getWidth();
         int altura = imagem.getHeight();
@@ -72,7 +72,9 @@ public class FloodFillPilha implements AlgoritmoFloodFill {
                 continue;
             }
 
-            if (rgb(imagem.getRGB(p.col, p.row)) != corOriginal) {
+            // Já está na cor nova ou a cor está longe demais da original
+            int cor = rgb(imagem.getRGB(p.col, p.row));
+            if (cor == novaCor || !AlgoritmoFloodFill.corProxima(cor, corOriginal, limiar)) {
                 continue;
             }
             servico.pintar(imagem, p, novaCor);

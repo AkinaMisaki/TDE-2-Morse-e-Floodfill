@@ -188,7 +188,7 @@ public class LabirintoInfinito extends JFrame {
                 long pausadoAntes = tempoPausadoNs;
                 long inicio = System.nanoTime();
                 Position chegada = algoritmos.get(indice).executar(
-                        lab, entrada.col, entrada.row, EXPLORADO, saida, servico);
+                        lab, entrada.col, entrada.row, EXPLORADO, 0, saida, servico);
                 long decorrido = System.nanoTime() - inicio;
                 // Tempo até a saída, sem contar o tempo pausado.
                 long total = decorrido - (tempoPausadoNs - pausadoAntes);

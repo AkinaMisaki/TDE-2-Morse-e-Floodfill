@@ -11,6 +11,7 @@ import java.awt.Point;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.awt.image.WritableRaster;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,6 +56,7 @@ public class EditorGrid extends JFrame {
     private AlgoritmoFloodFill ferramenta; // Null = lápis
     private String nomeFerramenta;
     private volatile boolean executando;
+    private volatile boolean cancelado; // O botão Cancelar liga, a thread do balde lê
     private Point ultimaCelula;
 
     private final PainelGrade painel = new PainelGrade();
@@ -66,9 +68,11 @@ public class EditorGrid extends JFrame {
     private final JSpinner spLargura = new JSpinner(new SpinnerNumberModel(32, 1, TAMANHO_MAXIMO, 1));
     private final JSpinner spAltura = new JSpinner(new SpinnerNumberModel(32, 1, TAMANHO_MAXIMO, 1));
     private final JSpinner spPorQuadro = new JSpinner(new SpinnerNumberModel(10, 1, 100000, 1));
+    private final JSpinner spLimiar = new JSpinner(new SpinnerNumberModel(50, 0, 255, 1)); // 0 = só a cor exata
     private final JSlider slAtraso = new JSlider(0, 200, 50);       // Atraso em ms por passo
     private final JLabel valorAtraso = new JLabel();
     private final JCheckBox cbSalvarEtapas = new JCheckBox("Salvar etapas em BMP a cada", false);
+    private final JButton btCancelar = new JButton("Cancelar");
     private final List<JComponent> controles = new ArrayList<>();
     private final List<String> nomesAlgoritmos = new ArrayList<>();
     private final List<AlgoritmoFloodFill> algoritmos = new ArrayList<>();
@@ -125,6 +129,10 @@ public class EditorGrid extends JFrame {
         JButton labirinto = new JButton("Labirinto infinito...");
         labirinto.addActionListener(e -> abrirLabirinto());
         JPanel direitaTopo = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        // Só fica ligado enquanto um balde está pintando (ver setExecutando).
+        btCancelar.setEnabled(false);
+        btCancelar.addActionListener(e -> cancelado = true);
+        direitaTopo.add(btCancelar);
         direitaTopo.add(labirinto);
         controles.add(labirinto);
         JPanel linhaTopo = new JPanel(new BorderLayout());
@@ -191,6 +199,12 @@ public class EditorGrid extends JFrame {
         });
         linha.add(mais);
         controles.add(mais);
+
+        // Limiar do balde: quanto a cor pode diferir da cor do pixel clicado.
+        linha.add(new JLabel("  Limiar:"));
+        spLimiar.setToolTipText("0 = so a cor exata. Quanto maior, mais cores parecidas com a do pixel clicado o balde pinta.");
+        linha.add(spLimiar);
+        controles.add(spLimiar);
         return linha;
     }
 
@@ -213,6 +227,11 @@ public class EditorGrid extends JFrame {
         opcoes.add(cbSalvarEtapas);
         opcoes.add(spPorQuadro);
         opcoes.add(new JLabel("pixels"));
+        JButton resetar = new JButton("Resetar BMPs");
+        resetar.setToolTipText("Apaga as etapas ja salvas. Sem isso, cada balde continua a numeracao de onde a pasta parou.");
+        resetar.addActionListener(e -> resetarEtapas());
+        opcoes.add(resetar);
+        controles.add(resetar);
         spPorQuadro.setEnabled(false);
         cbSalvarEtapas.addActionListener(e -> spPorQuadro.setEnabled(cbSalvarEtapas.isSelected()));
         controles.add(cbSalvarEtapas);
@@ -348,23 +367,29 @@ public class EditorGrid extends JFrame {
         BufferedImage imagem = grade;
         int cor = corAtual.getRGB() & 0xFFFFFF;
         // Sem a caixa marcada, pasta = null e nada é salvo.
-        File pasta = cbSalvarEtapas.isSelected()
-                ? new File("saida_" + nome.toLowerCase().replaceAll("[^a-z0-9]+", "_"))
-                : null;
+        File pasta = cbSalvarEtapas.isSelected() ? pastaEtapas(nome) : null;
         int atraso = slAtraso.getValue();
         int porQuadro = (Integer) spPorQuadro.getValue();
+        int limiar = (Integer) spLimiar.getValue();
 
+        cancelado = false;
         setExecutando(true);
         status.setText("Executando com " + nome + " a partir de (" + x + ", " + y + ")...");
 
         // Roda fora da thread da interface, senão a animação não aparece.
         Thread thread = new Thread(() -> {
             String mensagem;
+            WritableRaster antes = imagem.copyData(null); // Cópia dos pixels, pra desfazer se cancelar
             try {
-                ImageService servico = new ImageService(pasta, porQuadro, atraso, painel::repaint);
+                ImageService servico = new ImageService(pasta, porQuadro, atraso, () -> {
+                    if (cancelado) {
+                        throw new Cancelado(); // Interrompe o algoritmo na hora
+                    }
+                    painel.repaint();
+                });
 
                 long inicio = System.nanoTime();
-                algoritmo.executar(imagem, x, y, cor, null, servico);
+                algoritmo.executar(imagem, x, y, cor, limiar, null, servico);
                 long total = System.nanoTime() - inicio;
                 long soAlgoritmo = total - servico.getTempoServicoNs();
                 int pintados = servico.getPixelsPintados();
@@ -377,6 +402,9 @@ public class EditorGrid extends JFrame {
                             + (pasta == null ? "." : ", " + servico.getQuadrosSalvos()
                                + " imagens salvas em " + pasta.getAbsolutePath());
                 }
+            } catch (Cancelado ex) {
+                imagem.setData(antes);
+                mensagem = "Cancelado. A imagem voltou a ser como era antes do balde.";
             } catch (IOException | RuntimeException ex) {
                 mensagem = "Erro: " + ex.getMessage();
             }
@@ -391,12 +419,45 @@ public class EditorGrid extends JFrame {
         thread.start();
     }
 
+    /** Pasta onde ficam as etapas do algoritmo (tipo saida_fila). */
+    private static File pastaEtapas(String nome) {
+        return new File("saida_" + nome.toLowerCase().replaceAll("[^a-z0-9]+", "_"));
+    }
+
+    /** Apaga os BMPs das etapas de todos os algoritmos, depois de confirmar. */
+    private void resetarEtapas() {
+        int total = 0;
+        for (String nome : nomesAlgoritmos) {
+            total += ImageService.contarEtapas(pastaEtapas(nome));
+        }
+        if (total == 0) {
+            status.setText("Nenhuma etapa salva pra apagar.");
+            return;
+        }
+        int resposta = JOptionPane.showConfirmDialog(this, "Apagar as " + total + " etapas salvas (passo_*.bmp)?",
+                "Resetar BMPs", JOptionPane.YES_NO_OPTION);
+        if (resposta != JOptionPane.YES_OPTION) {
+            return;
+        }
+        int apagadas = 0;
+        for (String nome : nomesAlgoritmos) {
+            apagadas += ImageService.apagarEtapas(pastaEtapas(nome));
+        }
+        status.setText(apagadas + " etapas apagadas. O proximo balde comeca do passo_0000.");
+    }
+
     private void setExecutando(boolean valor) {
         executando = valor;
         for (JComponent c : controles) {
             c.setEnabled(!valor);
         }
         spPorQuadro.setEnabled(!valor && cbSalvarEtapas.isSelected());
+        btCancelar.setEnabled(valor);
+    }
+
+    /** Usada pra parar o algoritmo no meio quando o usuário clica em Cancelar. */
+    private static class Cancelado extends RuntimeException {
+        private static final long serialVersionUID = 1L;
     }
 
     // ---------------------------------------------------------------- Painel da grade
